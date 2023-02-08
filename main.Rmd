@@ -1,0 +1,232 @@
+---
+title: "Main"
+author: "Rama Krishna Thelagathoti"
+date: "7/16/2021"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Actigraph data sets : Depression & Psykose
+
+
+```{r main}
+
+library(ggplot2)
+library(caret)
+library(tidyverse)
+library(tidymodels)
+library(GGally)
+library(plyr)
+library(readr)
+library(dplyr)
+library(lubridate)
+library(gtools)
+library(DataExplorer)
+library(DescTools) 
+library(corrplot)
+library(reshape2)
+library(cluster)
+library(igraph)
+library(network)
+library(sna)
+library(intergraph)
+library(lsa)
+library(car)
+library(ggraph)
+library(graphlayouts)
+library(ggcorrplot)
+library(networkD3)
+library(visNetwork)
+library(ggpubr)
+library("mstknnclust")
+library(factoextra)
+library(network)
+library(MCL)
+library('RColorBrewer')
+
+# Set working directory
+tryCatch({
+  setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+  }, error=function(cond){message(paste("cannot change working directory"))
+})
+
+#Include sub files
+source("data_processing.R")
+source("data_features.R")
+source("model_hourly.R")
+source("model_daywise.R")
+source("data_utils.R")
+source("data_plots.R")
+source("graph_analysis.R")
+source("model_sch.R")
+source("sch_analysis.R")
+
+############################
+#only depresjon
+###########################
+
+#process scores, depression, schizophrenia and control group data
+df.scores <- prepare_scores()
+df.deprs <- prepare_deprs_data(df.scores)
+df.cont <- prepare_cont_data(df.scores)
+
+# first day is removed in prepare_deprs_data function.
+#hence, decrease number of days by 1
+df.scores$days <- df.scores$days -1
+
+deprs.features <- deprs_extract_features(df.deprs, df.scores)
+cont.features <- cont_extract_features(df.cont, df.scores)
+
+colSums(is.na(deprs.features))
+colSums(is.na(cont.features))
+
+#only h2 & sd2 has NAs 
+cont.features$h2[is.na(cont.features$h2)] <- round(mean(cont.features$h2, , na.rm = TRUE))
+cont.features$sd2[is.na(cont.features$sd2)] <- round(mean(cont.features$sd2, na.rm = TRUE))
+
+#combine both condition and control group
+df.features <- rbind(deprs.features,cont.features)
+#df.features$day <- as.factor(df.features$day)
+#df.features$id <- as.factor(df.features$id)
+
+
+##########################
+#with schz , DEPR and cond
+##########################
+#process scores, depression, schizophrenia and control group data
+df.scores <- prepare_scores()
+df.schz.info <- prepare_schz_info()
+df.deprs <- prepare_deprs_data(df.scores)
+df.cont <- prepare_cont_data(df.scores)
+df.schz <- prepare_schz_data(df.schz.info)
+scores.merged <- merge_scores()
+
+# first day is removed in prepare_deprs_data function.
+#hence, decrease number of days by 1
+df.scores$days <- df.scores$days -1
+df.schz.info$days <- df.schz.info$days -1
+
+deprs.features <- deprs_extract_features(df.deprs, df.scores)
+cont.features <- cont_extract_features(df.cont, df.scores)
+schz.features <- schz_extract_features(df.schz,df.schz.info)
+
+colSums(is.na(deprs.features))
+colSums(is.na(cont.features))
+colSums(is.na(schz.features))
+
+#only h2 & sd2 has NAs 
+cont.features$h2[is.na(cont.features$h2)] <- round(mean(cont.features$h2, , na.rm = TRUE))
+cont.features$sd2[is.na(cont.features$sd2)] <- round(mean(cont.features$sd2, na.rm = TRUE))
+
+#combine both condition and control group
+df.features <- rbind(deprs.features,cont.features)
+df.features <- rbind(deprs.features,cont.features, schz.features)
+#df.features$day <- as.factor(df.features$day)
+#df.features$id <- as.factor(df.features$id)
+
+##########################
+#with only schz & cont
+##########################
+#process scores, depression, schizophrenia and control group data
+df.scores <- prepare_scores()
+df.schz.info <- prepare_schz_info()
+df.deprs <- prepare_deprs_data(df.scores)
+df.cont <- prepare_cont_data(df.scores)
+df.schz <- prepare_schz_data(df.schz.info)
+scores.merged <- merge_scores()
+
+# first day is removed in prepare_deprs_data function.
+#hence, decrease number of days by 1
+df.scores$days <- df.scores$days -1
+df.schz.info$days <- df.schz.info$days -1
+
+deprs.features <- deprs_extract_features(df.deprs, df.scores)
+cont.features <- cont_extract_features(df.cont, df.scores)
+schz.features <- schz_extract_features(df.schz,df.schz.info)
+
+colSums(is.na(deprs.features))
+colSums(is.na(cont.features))
+colSums(is.na(schz.features))
+
+#only h2 & sd2 has NAs 
+cont.features$h2[is.na(cont.features$h2)] <- round(mean(cont.features$h2, , na.rm = TRUE))
+cont.features$sd2[is.na(cont.features$sd2)] <- round(mean(cont.features$sd2, na.rm = TRUE))
+
+#combine both condition and control group
+df.features <- rbind(cont.features, schz.features)
+
+###########
+
+#Exploratory data analysis
+plot_scores(df.scores)
+ plot_days(df.scores)
+plot_group_activity(df.features)
+
+```
+
+## Model building with hourly features
+
+```{r hourly model}
+
+# model building with hourly features
+nh1 <- model_hourly_mean(deprs.features, cont.features)
+nh2 <- model_hourly_mean_sd(deprs.features, cont.features)
+nh3 <- model_hourly_day_mean_med_sd(deprs.features, cont.features)
+nh4 <- model_hourly_all(deprs.features, cont.features)
+
+#model_hourly_all_with_schz(deprs.features, cont.features,schz.features)
+
+
+```
+
+## Model building with day-wise features
+
+```{r daywise model}
+
+# model building with day-wise features
+nd1 <- model_daywise_mean(deprs.features, cont.features, df.scores)
+nd2 <- model_daywise_mean_sd(deprs.features, cont.features, df.scores)
+nd3 <- model_daywise_mean_med_sd(deprs.features, cont.features, df.scores )
+
+
+```
+
+## Model building with day-wise features
+
+```{r daywise model2}
+
+# model building with 3 groups and daywise features
+#model_daywise_mean_med_sd_all(deprs.features, cont.features, schz.features,  df.scores, df.schz.info)
+
+```
+
+
+```{r cluster analysis}
+
+mcl_clst_analysis(nh1, df.scores)
+
+mcl_clst_analysis(nh2, df.scores)
+
+mcl_clst_analysis(nh3, df.scores)
+
+mcl_clst_analysis(nh4, df.scores)
+
+mcl_clst_analysis(nd1, df.scores)
+
+mcl_clst_analysis(nd2, df.scores)
+
+mcl_clst_analysis(nd3, df.scores)
+
+
+
+
+```
+
+
